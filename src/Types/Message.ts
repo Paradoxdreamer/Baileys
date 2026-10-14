@@ -171,6 +171,43 @@ type RequestPhoneNumber = {
 	requestPhoneNumber: boolean
 }
 
+/** Paradox Overlord interactive types */
+export type ParadoxListRow = {
+	title: string
+	rowId: string
+	description?: string
+	header?: string
+}
+
+export type ParadoxListSection = {
+	title: string
+	rows: ParadoxListRow[]
+	highlight_label?: string
+}
+
+export type ParadoxListContent = {
+	list: {
+		text: string
+		title?: string
+		buttonText?: string
+		footer?: string
+		sections: ParadoxListSection[]
+	}
+}
+
+export type ParadoxInteractiveContent = {
+	interactive: {
+		text: string
+		title?: string
+		subtitle?: string
+		footer?: string
+		buttons: Array<{
+			name: 'quick_reply' | 'cta_url' | 'cta_call' | 'cta_copy' | 'single_select'
+			buttonParamsJson: string
+		}>
+	}
+}
+
 export type AnyMediaMessageContent = (
 	| ({
 			image: WAMediaUpload
@@ -283,6 +320,8 @@ export type AnyRegularMessageContent = (
 	  }
 	| SharePhoneNumber
 	| RequestPhoneNumber
+	| ParadoxListContent
+	| ParadoxInteractiveContent
 ) &
 	ViewOnce
 
