@@ -1,18 +1,24 @@
 {
   "name": "baileys",
   "type": "module",
-  "version": "7.0.0-rc14",
-  "description": "A WebSockets library for interacting with WhatsApp Web",
+  "version": "7.0.0-rc14-paradox",
+  "description": "Paradox Overlord enhanced Baileys — interactive menus, nested lists, carousels, anti-ban ready. Powered by Paradox Overlord.",
   "keywords": [
     "whatsapp",
-    "automation"
+    "automation",
+    "baileys",
+    "paradox",
+    "paradox-overlord",
+    "interactive",
+    "carousel",
+    "buttons"
   ],
-  "homepage": "https://github.com/WhiskeySockets/Baileys/",
+  "homepage": "https://github.com/Paradoxdreamer/Baileys",
   "repository": {
-    "url": "git@github.com:WhiskeySockets/Baileys.git"
+    "url": "git@github.com:Paradoxdreamer/Baileys.git"
   },
   "license": "MIT",
-  "author": "Rajeh Taher",
+  "author": "Paradox Tech / Paradox Overlord",
   "main": "lib/index.js",
   "types": "lib/index.d.ts",
   "files": [
