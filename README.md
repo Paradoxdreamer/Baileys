@@ -1,173 +1,90 @@
-# Paradox Overlord Baileys
+# Paradox Overlord Baileys (Hybrid)
 
-**Fork of [WhiskeySockets/Baileys](https://github.com/WhiskeySockets/Baileys)** for ParadoxGPT and custom bots.
+**Fork of [WhiskeySockets/Baileys](https://github.com/WhiskeySockets/Baileys)** + best of **@alannxd/baileys**-style interactive DX.
 
 **Powered by: 𝕻𝖆𝖗𝖆𝖉𝖔𝖝 𝕺𝖛𝖊𝖗𝖑𝖔𝖗𝖉**
 
-> Upstream docs: [baileys.wiki](https://baileys.wiki) · [Migration guide](https://whiskey.so/migrate-latest)
+> Upstream: [baileys.wiki](https://baileys.wiki)
 
 ## Install
 
 ```bash
 yarn add github:Paradoxdreamer/Baileys
-# or
-npm install github:Paradoxdreamer/Baileys
 ```
 
-```ts
-import makeWASocket, {
-  buildParadoxCarousel,
-  buildParadoxCarouselAsync,
-  buildBugMenuCarousel,
-  buildAvailableMenusMessage,
-  buildParadoxList,
-  buildParadoxInteractive,
-  makeSingleSelectButton,
-  makeQuickReply,
-  ParadoxBrand
-} from 'baileys'
+```json
+{
+  "dependencies": {
+    "@whiskeysockets/baileys": "github:Paradoxdreamer/Baileys"
+  }
+}
 ```
 
-## Nested menus (list-in-button)
+## Hybrid features
 
-```ts
-const content = buildAvailableMenusMessage({
-  botName: 'ParadoxGPT',
-  version: '2.0.0'
-})
-await sock.relayMessage(jid, content, {})
-```
+| Feature | Source | Status |
+|---------|--------|--------|
+| `interactiveButtons` + media header via `sendMessage` | alannxd-style | ✅ |
+| Nested list-in-button / single_select | Paradox | ✅ |
+| Carousel cards (custom names) | Paradox | ✅ |
+| Carousel with image upload | Paradox | ✅ |
+| `cards` alias on sendMessage | hybrid | ✅ |
+| Biz / native_flow nodes helper | hybrid | ✅ |
+| Paradox Overlord branding | Paradox | ✅ |
+| Anti-ban hardening | — | 🔜 |
 
-Fully custom list:
+### 1) alannxd-style interactiveButtons
 
 ```ts
 await sock.sendMessage(jid, {
-  list: {
-    text: 'Pick a category',
-    title: 'My Bot',
-    buttonText: 'All menus',
-    sections: [{
-      title: 'Main',
-      rows: [
-        { title: 'Owner menu', rowId: 'owner' },
-        { title: 'General Commands', rowId: 'general' }
-      ]
-    }]
-  }
-})
-```
-
-## Carousel (custom names + images)
-
-**Every title, body, and button label is yours** — pass whatever you need from ParadoxGPT or any other bot (`Fc-beta`, `Crash-beta`, product names, etc.).
-
-### Without images
-
-```ts
-const content = buildParadoxCarousel({
-  text: 'Bug menu cmd',
-  cards: [
+  text: 'Choose an option',
+  title: 'ParadoxGPT',
+  image: { url: 'https://example.com/header.jpg' },
+  interactiveButtons: [
     {
-      title: 'Beta Bug',
-      body: 'Pick a beta action',
-      buttons: [
-        { text: 'Fc-beta', id: 'fc_beta' },
-        { text: 'Crash-beta', id: 'crash_beta' },
-        { text: 'Delay-beta', id: 'delay_beta' }
-      ]
+      name: 'quick_reply',
+      buttonParamsJson: JSON.stringify({ display_text: 'Stats', id: 'bot_stats' })
     },
     {
-      title: 'Group Bug',
-      body: 'Group actions',
-      buttons: [
-        { text: 'Fc-group', id: 'fc_group' },
-        { text: 'Xgroup', id: 'xgroup' },
-        { text: 'Delay-all', id: 'delay_all' }
-      ]
-    },
-    {
-      title: 'Contact me',
-      body: 'Reach the owner',
-      buttons: [{ text: 'Contact me', id: 'contact_owner' }]
+      name: 'single_select',
+      buttonParamsJson: JSON.stringify({
+        title: 'All menus',
+        sections: [{ title: 'Main', rows: [{ title: 'Owner', id: 'owner' }] }]
+      })
     }
   ]
 })
-await sock.relayMessage(jid, content, {})
 ```
 
-### With images
+### 2) Carousel with images
 
 ```ts
+import { buildParadoxCarouselAsync, relayParadoxMessage } from 'baileys'
+
 const content = await buildParadoxCarouselAsync(
   {
     text: 'Bug menu cmd',
     cards: [
       {
         title: 'Beta Bug',
-        body: 'Fc-beta · Crash-beta · Delay-beta',
-        image: { url: 'https://example.com/beta.jpg' }, // or Buffer
+        image: { url: 'https://example.com/beta.jpg' },
         buttons: [
           { text: 'Fc-beta', id: 'fc_beta' },
           { text: 'Crash-beta', id: 'crash_beta' }
-        ]
-      },
-      {
-        title: 'Group Bug',
-        body: 'Fc-group · Delay-all',
-        image: { url: 'https://example.com/group.jpg' },
-        buttons: [
-          { text: 'Fc-group', id: 'fc_group' },
-          { text: 'Delay-all', id: 'delay_all' }
         ]
       }
     ]
   },
   { upload: sock.waUploadToServer }
 )
-await sock.relayMessage(jid, content, {})
+await relayParadoxMessage(sock, jid, content)
 ```
 
-### Preset (override anytime)
+### 3) Nested menus
 
 ```ts
-// Defaults (Fc-beta, Crash-beta, …)
-await sock.relayMessage(jid, buildBugMenuCarousel(), {})
-
-// Your own cards / names / images
-await sock.relayMessage(
-  jid,
-  buildBugMenuCarousel({
-    title: 'My menu',
-    cards: [
-      {
-        title: 'Whatever you want',
-        body: 'Any description',
-        buttons: [{ text: 'Any label', id: 'any_id' }]
-      }
-    ]
-  }),
-  {}
-)
+import { buildAvailableMenusMessage, relayParadoxMessage } from 'baileys'
+await relayParadoxMessage(sock, jid, buildAvailableMenusMessage({ botName: 'ParadoxGPT' }))
 ```
 
-## Branding
-
-Footer is hard-baked as **Powered by: 𝕻𝖆𝖗𝖆𝖉𝖔𝖝 𝕺𝖛𝖊𝖗𝖑𝖔𝖗𝖉**.  
-Override with `footer: '...'` on any builder if needed.
-
-## Features
-
-| Feature | Status |
-|---------|--------|
-| Nested list-in-button (`single_select`) | ✅ |
-| Interactive native-flow buttons | ✅ |
-| Carousel cards (fully custom names) | ✅ |
-| Carousel image upload | ✅ `buildParadoxCarouselAsync` |
-| Paradox Overlord branding | ✅ |
-| Anti-ban hardening | 🔜 |
-
-## Disclaimer
-
-Not affiliated with WhatsApp. Use responsibly. Do not spam.
-
-Upstream Baileys is maintained by the WhiskeySockets community. This fork adds Paradox Overlord interactive helpers on top.
+Default footer: **Powered by: 𝕻𝖆𝖗𝖆𝖉𝖔𝖝 𝕺𝖛𝖊𝖗𝖑𝖔𝖗𝖉**
