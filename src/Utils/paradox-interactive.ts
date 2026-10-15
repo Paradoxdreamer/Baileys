@@ -31,11 +31,6 @@ export type ParadoxListOptions = {
 	sections: ParadoxListSection[]
 }
 
-export type ParadoxButton = {
-	displayText: string
-	id: string
-}
-
 export type ParadoxNativeFlowButton = {
 	name: 'quick_reply' | 'cta_url' | 'cta_call' | 'cta_copy' | 'single_select'
 	buttonParamsJson: string
@@ -49,17 +44,43 @@ export type ParadoxInteractiveOptions = {
 	interactiveButtons: ParadoxNativeFlowButton[]
 }
 
+/** Simple button shorthand used inside carousel cards */
+export type ParadoxCardButton = {
+	text: string
+	id?: string
+	url?: string
+	call?: string
+	copy?: string
+	useWebview?: boolean
+}
+
 export type ParadoxCarouselCard = {
-	image?: { url: string } | Buffer
-	caption?: string
-	footer?: string
+	/** Card title (header) */
 	title?: string
-	nativeFlow?: Array<{ text: string; id?: string; url?: string; useWebview?: boolean }>
+	/** Card body / caption text */
+	body?: string
+	caption?: string
+	/** Card footer (defaults to Paradox brand) */
+	footer?: string
+	/**
+	 * Optional image for the card header.
+	 * Pass a proto imageMessage object (after prepareWAMessageMedia) for real media,
+	 * or a simple { url: string } placeholder.
+	 */
+	image?: { url: string } | Buffer | proto.Message.IImageMessage
+	/** Native-flow buttons for this card (quick_reply / url / call / copy) */
+	buttons?: ParadoxCardButton[]
+	/** Alias for buttons */
+	nativeFlow?: ParadoxCardButton[]
 }
 
 export type ParadoxCarouselOptions = {
+	/** Main body text above the carousel */
 	text?: string
+	body?: string
+	/** Footer under the carousel (defaults to Paradox brand) */
 	footer?: string
+	/** 2–10 cards */
 	cards: ParadoxCarouselCard[]
 }
 
@@ -111,8 +132,185 @@ export function buildParadoxInteractive(opts: ParadoxInteractiveOptions): WAMess
 }
 
 /**
+ * Convert shorthand card buttons → nativeFlowButton entries
+ */
+function cardButtonsToNativeFlow(buttons: ParadoxCardButton[] = []): ParadoxNativeFlowButton[] {
+	return buttons.map(b => {
+		if (b.url) {
+			return {
+				name: 'cta_url' as const,
+				buttonParamsJson: JSON.stringify({
+					display_text: b.text,
+					url: b.url,
+					merchant_url: b.url,
+					webview_interaction: !!b.useWebview
+				})
+			}
+		}
+		if (b.call) {
+			return {
+				name: 'cta_call' as const,
+				buttonParamsJson: JSON.stringify({
+					display_text: b.text,
+					phone_number: b.call
+				})
+			}
+		}
+		if (b.copy) {
+			return {
+				name: 'cta_copy' as const,
+				buttonParamsJson: JSON.stringify({
+					display_text: b.text,
+					copy_code: b.copy
+				})
+			}
+		}
+		return {
+			name: 'quick_reply' as const,
+			buttonParamsJson: JSON.stringify({
+				display_text: b.text,
+				id: b.id || b.text
+			})
+		}
+	})
+}
+
+/**
+ * Build a single carousel card as InteractiveMessage
+ */
+function buildCarouselCard(card: ParadoxCarouselCard): proto.Message.IInteractiveMessage {
+	const bodyText = card.body || card.caption || card.title || ''
+	const footerText = card.footer ?? PARADOX_FOOTER
+	const btns = card.buttons || card.nativeFlow || []
+	const nativeButtons = cardButtonsToNativeFlow(btns)
+
+	const interactive: proto.Message.IInteractiveMessage = {
+		body: { text: bodyText },
+		footer: { text: footerText },
+		nativeFlowMessage: {
+			buttons: nativeButtons.map(b => ({
+				name: b.name,
+				buttonParamsJson: b.buttonParamsJson
+			})),
+			messageParamsJson: JSON.stringify({ from: 'paradox-overlord' })
+		}
+	}
+
+	// Header with optional media
+	const hasImage = !!card.image
+	if (hasImage) {
+		const img = card.image as any
+		// Already a prepared imageMessage (has url + mediaKey or directPath)
+		if (img && (img.mediaKey || img.directPath || img.url) && (img.mimetype || img.fileLength)) {
+			interactive.header = {
+				title: card.title || '',
+				hasMediaAttachment: true,
+				imageMessage: img as proto.Message.IImageMessage
+			}
+		} else if (img?.url || Buffer.isBuffer(img)) {
+			// Placeholder — real upload should use prepareWAMessageMedia before send
+			interactive.header = {
+				title: card.title || '',
+				hasMediaAttachment: false
+			}
+		} else {
+			interactive.header = {
+				title: card.title || '',
+				hasMediaAttachment: false
+			}
+		}
+	} else if (card.title) {
+		interactive.header = {
+			title: card.title,
+			hasMediaAttachment: false
+		}
+	}
+
+	return interactive
+}
+
+/**
+ * Build carousel message (swipeable cards)
+ * Matches the "Bug menu" / product-card style from screenshots
+ *
+ * Usage:
+ *   const content = buildParadoxCarousel({
+ *     text: 'Bug menu cmd',
+ *     cards: [
+ *       { title: 'Beta Bug', body: 'Fc-beta', buttons: [{ text: 'Run', id: 'fc_beta' }] },
+ *       { title: 'Group Bug', body: 'Fc-group', buttons: [{ text: 'Run', id: 'fc_group' }] }
+ *     ]
+ *   })
+ *   await sock.relayMessage(jid, content, {})
+ *
+ * For real images, prepare media first:
+ *   const { imageMessage } = await prepareWAMessageMedia({ image: { url } }, { upload: sock.waUploadToServer, ... })
+ *   cards: [{ title: '...', image: imageMessage, buttons: [...] }]
+ */
+export function buildParadoxCarousel(opts: ParadoxCarouselOptions): WAMessageContent {
+	if (!opts.cards?.length) {
+		throw new Error('Paradox carousel requires at least 1 card')
+	}
+	if (opts.cards.length > 10) {
+		throw new Error('Paradox carousel supports max 10 cards')
+	}
+
+	const bodyText = opts.text || opts.body || ''
+	const footer = opts.footer ?? PARADOX_BRAND
+
+	return {
+		interactiveMessage: {
+			body: bodyText ? { text: bodyText } : undefined,
+			footer: { text: footer },
+			carouselMessage: {
+				cards: opts.cards.map(buildCarouselCard),
+				messageVersion: 1
+			}
+		}
+	}
+}
+
+/**
+ * Ready-made "Bug menu" style carousel matching user screenshots
+ */
+export function buildBugMenuCarousel(options?: {
+	title?: string
+	footer?: string
+}): WAMessageContent {
+	return buildParadoxCarousel({
+		text: options?.title || 'Bug menu cmd',
+		footer: options?.footer ?? PARADOX_BRAND,
+		cards: [
+			{
+				title: 'Beta Bug',
+				body: 'Fc-beta · Betai · Crash-beta · Delay-beta',
+				footer: PARADOX_FOOTER,
+				buttons: [
+					{ text: 'Fc-beta', id: 'fc_beta' },
+					{ text: 'Crash-beta', id: 'crash_beta' }
+				]
+			},
+			{
+				title: 'Group Bug',
+				body: 'Fc-group · Xgroup · Delay-all',
+				footer: PARADOX_FOOTER,
+				buttons: [
+					{ text: 'Fc-group', id: 'fc_group' },
+					{ text: 'Delay-all', id: 'delay_all' }
+				]
+			},
+			{
+				title: 'Contact me',
+				body: 'Reach the owner',
+				footer: PARADOX_FOOTER,
+				buttons: [{ text: 'Contact me', id: 'contact_owner' }]
+			}
+		]
+	})
+}
+
+/**
  * Helper to create a single_select (list-in-button) payload
- * This is the nested list that appears when user taps a button
  */
 export function makeSingleSelectButton(
 	displayText: string,
@@ -160,6 +358,32 @@ export function makeUrlButton(displayText: string, url: string): ParadoxNativeFl
 			display_text: displayText,
 			url,
 			merchant_url: url
+		})
+	}
+}
+
+/**
+ * CTA call button
+ */
+export function makeCallButton(displayText: string, phoneNumber: string): ParadoxNativeFlowButton {
+	return {
+		name: 'cta_call',
+		buttonParamsJson: JSON.stringify({
+			display_text: displayText,
+			phone_number: phoneNumber
+		})
+	}
+}
+
+/**
+ * CTA copy button
+ */
+export function makeCopyButton(displayText: string, code: string): ParadoxNativeFlowButton {
+	return {
+		name: 'cta_copy',
+		buttonParamsJson: JSON.stringify({
+			display_text: displayText,
+			copy_code: code
 		})
 	}
 }
