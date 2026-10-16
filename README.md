@@ -1,15 +1,17 @@
-# Paradox Overlord Baileys (Hybrid)
+# Paradox Overlord Baileys
 
-**Fork of [WhiskeySockets/Baileys](https://github.com/WhiskeySockets/Baileys)** + best of **@alannxd/baileys**-style interactive DX.
+**Fork of [WhiskeySockets/Baileys](https://github.com/WhiskeySockets/Baileys)** with a full interactive layer for ParadoxGPT and related bots.
 
 **Powered by: 𝕻𝖆𝖗𝖆𝖉𝖔𝖝 𝕺𝖛𝖊𝖗𝖑𝖔𝖗𝖉**
 
-> Upstream: [baileys.wiki](https://baileys.wiki)
+> Upstream docs: [baileys.wiki](https://baileys.wiki)
 
 ## Install
 
 ```bash
 yarn add github:Paradoxdreamer/Baileys
+# or
+npm install github:Paradoxdreamer/Baileys
 ```
 
 ```json
@@ -20,20 +22,22 @@ yarn add github:Paradoxdreamer/Baileys
 }
 ```
 
-## Hybrid features
+## Features
 
-| Feature | Source | Status |
-|---------|--------|--------|
-| `interactiveButtons` + media header via `sendMessage` | alannxd-style | ✅ |
-| Nested list-in-button / single_select | Paradox | ✅ |
-| Carousel cards (custom names) | Paradox | ✅ |
-| Carousel with image upload | Paradox | ✅ |
-| `cards` alias on sendMessage | hybrid | ✅ |
-| Biz / native_flow nodes helper | hybrid | ✅ |
-| Paradox Overlord branding | Paradox | ✅ |
-| Anti-ban hardening | — | 🔜 |
+| Feature | Status |
+|---------|--------|
+| `interactiveButtons` + media header via `sendMessage` | ✅ |
+| Nested list-in-button / `single_select` | ✅ |
+| Carousel cards (any custom names) | ✅ |
+| Carousel with image upload | ✅ |
+| `cards` alias on `sendMessage` | ✅ |
+| Biz / `native_flow` relay helper | ✅ |
+| Paradox Overlord branding (baked in) | ✅ |
+| Anti-ban hardening | 🔜 |
 
-### 1) alannxd-style interactiveButtons
+## Usage
+
+### Interactive buttons (with optional image header)
 
 ```ts
 await sock.sendMessage(jid, {
@@ -49,14 +53,21 @@ await sock.sendMessage(jid, {
       name: 'single_select',
       buttonParamsJson: JSON.stringify({
         title: 'All menus',
-        sections: [{ title: 'Main', rows: [{ title: 'Owner', id: 'owner' }] }]
+        sections: [
+          {
+            title: 'Main',
+            rows: [{ title: 'Owner menu', id: 'owner' }]
+          }
+        ]
       })
     }
   ]
 })
 ```
 
-### 2) Carousel with images
+`text` + `interactiveButtons` on the same object works — interactive handlers run before plain text.
+
+### Carousel with images
 
 ```ts
 import { buildParadoxCarouselAsync, relayParadoxMessage } from 'baileys'
@@ -72,19 +83,78 @@ const content = await buildParadoxCarouselAsync(
           { text: 'Fc-beta', id: 'fc_beta' },
           { text: 'Crash-beta', id: 'crash_beta' }
         ]
+      },
+      {
+        title: 'Group Bug',
+        buttons: [
+          { text: 'Fc-group', id: 'fc_group' },
+          { text: 'Xgroup', id: 'xgroup' }
+        ]
       }
     ]
   },
   { upload: sock.waUploadToServer }
 )
+
 await relayParadoxMessage(sock, jid, content)
 ```
 
-### 3) Nested menus
+Or via `sendMessage`:
+
+```ts
+await sock.sendMessage(jid, {
+  text: 'Menus',
+  cards: [
+    {
+      title: 'Beta Bug',
+      buttons: [{ text: 'Fc-beta', id: 'fc_beta' }]
+    }
+  ]
+})
+```
+
+Card titles and button labels are fully custom — pass whatever you use in ParadoxGPT.
+
+### Nested menus (available menus style)
 
 ```ts
 import { buildAvailableMenusMessage, relayParadoxMessage } from 'baileys'
-await relayParadoxMessage(sock, jid, buildAvailableMenusMessage({ botName: 'ParadoxGPT' }))
+
+await relayParadoxMessage(
+  sock,
+  jid,
+  buildAvailableMenusMessage({ botName: 'ParadoxGPT', version: '2.0.0' })
+)
 ```
 
-Default footer: **Powered by: 𝕻𝖆𝖗𝖆𝖉𝖔𝖝 𝕺𝖛𝖊𝖗𝖑𝖔𝖗𝖉**
+### Helpers
+
+```ts
+import {
+  buildParadoxList,
+  buildParadoxInteractive,
+  buildParadoxCarousel,
+  buildParadoxCarouselAsync,
+  buildBugMenuCarousel,
+  buildAvailableMenusMessage,
+  makeSingleSelectButton,
+  makeQuickReply,
+  makeUrlButton,
+  makeCallButton,
+  makeCopyButton,
+  getParadoxBizNode,
+  relayParadoxMessage,
+  ParadoxBrand,
+  PARADOX_BRAND
+} from 'baileys'
+```
+
+Default footer on interactive menus and carousels:
+
+**Powered by: 𝕻𝖆𝖗𝖆𝖉𝖔𝖝 𝕺𝖛𝖊𝖗𝖑𝖔𝖗𝖉**
+
+## Notes
+
+- This is an **ESM** package (`"type": "module"`). Use `import`, not `require`.
+- Depends on `whatsapp-rust-bridge` for the noise handshake — needs a matching native binary on the host.
+- Prefer `relayParadoxMessage` (or `additionalNodes` from `getParadoxBizNode`) when sending interactive / carousel content for reliable client rendering.
