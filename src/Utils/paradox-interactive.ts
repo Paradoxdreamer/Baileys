@@ -424,3 +424,71 @@ export const ParadoxBrand = {
 	footer: PARADOX_FOOTER,
 	full: 'Powered by: 𝕻𝖆𝖗𝖆𝖉𝖔𝖝 𝕺𝖛𝖊𝖗𝖑𝖔𝖗𝖉'
 }
+
+/**
+ * Biz / native_flow additionalNodes for reliable button rendering
+ * (hybrid of common Baileys forks including alannxd-style nodes)
+ */
+export function getParadoxBizNode(message?: any): {
+	tag: string
+	attrs: Record<string, string>
+	content?: any[]
+} {
+	const ts = Math.floor(Date.now() / 1000).toString()
+	const baseAttrs = {
+		actual_actors: '2',
+		host_storage: '2',
+		privacy_mode_ts: ts
+	}
+
+	const im = message?.interactiveMessage || message
+	const nativeFlow = im?.nativeFlowMessage
+	const firstName = nativeFlow?.buttons?.[0]?.name
+	const isCarousel = !!im?.carouselMessage
+	const isList = !!message?.listMessage
+
+	if (isCarousel || nativeFlow || isList) {
+		return {
+			tag: 'biz',
+			attrs: baseAttrs,
+			content: [
+				{
+					tag: 'interactive',
+					attrs: { type: 'native_flow', v: '1' },
+					content: [
+						{
+							tag: 'native_flow',
+							attrs: {
+								v: '9',
+								name: firstName && !isCarousel ? String(firstName) : 'mixed'
+							}
+						}
+					]
+				},
+				{
+					tag: 'quality_control',
+					attrs: { source_type: 'third_party' }
+				}
+			]
+		}
+	}
+
+	return { tag: 'biz', attrs: baseAttrs }
+}
+
+/**
+ * Convenience: relay an interactive/carousel message with correct biz nodes
+ */
+export async function relayParadoxMessage(
+	sock: { relayMessage: (jid: string, content: any, opts?: any) => Promise<any> },
+	jid: string,
+	content: WAMessageContent,
+	opts: any = {}
+) {
+	const nodes = opts.additionalNodes || []
+	const biz = getParadoxBizNode(content)
+	return sock.relayMessage(jid, content, {
+		...opts,
+		additionalNodes: [...nodes, biz]
+	})
+}
