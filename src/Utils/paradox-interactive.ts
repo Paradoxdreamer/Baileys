@@ -1,7 +1,7 @@
 /**
  * Paradox Overlord Interactive Layer
  * Hard-baked branding + nested list-in-button + carousel (with images)
- * Powered by: 𝕻𝖆𝖗𝖆𝖉𝖔𝖝 𝕺𝖛𝖊𝖗𝖑𝖔𝖗𝖉
+ * Powered by: 𝕻𝖆𝖗𝖆𝖝𝖔𝖝 𝕺𝖛𝖊𝖗𝖑𝖔𝖗𝖉
  *
  * All card titles, body text, and button labels are fully custom —
  * pass whatever names you want from ParadoxGPT or any other bot.
@@ -47,49 +47,29 @@ export type ParadoxInteractiveOptions = {
 	interactiveButtons: ParadoxNativeFlowButton[]
 }
 
-/** Button on a carousel card — labels are whatever you pass */
 export type ParadoxCardButton = {
-	/** Display label (e.g. "Fc-beta", "Crash-beta", "Buy Now") */
 	text: string
-	/** Reply id when tapped */
 	id?: string
-	/** Open URL */
 	url?: string
-	/** Phone number for call button */
 	call?: string
-	/** Text to copy */
 	copy?: string
 	useWebview?: boolean
 }
 
 export type ParadoxCarouselCard = {
-	/** Card title — any name you want */
 	title?: string
-	/** Card body / description */
 	body?: string
-	/** Alias for body */
 	caption?: string
-	/** Card footer (defaults to Paradox brand) */
 	footer?: string
-	/**
-	 * Card image:
-	 * - Prepared imageMessage from prepareWAMessageMedia (preferred)
-	 * - { url: string } or Buffer when using buildParadoxCarouselAsync
-	 */
 	image?: { url: string } | Buffer | proto.Message.IImageMessage
-	/** Buttons on this card — any labels */
 	buttons?: ParadoxCardButton[]
-	/** Alias for buttons */
 	nativeFlow?: ParadoxCardButton[]
 }
 
 export type ParadoxCarouselOptions = {
-	/** Main text above the cards */
 	text?: string
 	body?: string
-	/** Footer (defaults to Paradox brand) */
 	footer?: string
-	/** 1–10 cards — fully custom content */
 	cards: ParadoxCarouselCard[]
 }
 
@@ -120,7 +100,9 @@ export function buildParadoxInteractive(opts: ParadoxInteractiveOptions): WAMess
 	return {
 		interactiveMessage: {
 			body: { text: opts.text },
-			header: opts.title ? { title: opts.title, hasMediaAttachment: false } : undefined,
+			header: opts.title
+				? { title: opts.title, subtitle: opts.subtitle || '', hasMediaAttachment: false }
+				: undefined,
 			footer: { text: footer },
 			nativeFlowMessage: {
 				buttons: opts.interactiveButtons.map(b => ({
@@ -213,12 +195,6 @@ function buildCarouselCard(card: ParadoxCarouselCard): proto.Message.IInteractiv
 	return interactive
 }
 
-/**
- * Build carousel (sync). For images, pass prepared imageMessage
- * or use buildParadoxCarouselAsync with { url } / Buffer.
- *
- * All names are yours — Fc-beta, Crash-beta, product names, anything.
- */
 export function buildParadoxCarousel(opts: ParadoxCarouselOptions): WAMessageContent {
 	if (!opts.cards?.length) {
 		throw new Error('Paradox carousel requires at least 1 card')
@@ -242,9 +218,6 @@ export function buildParadoxCarousel(opts: ParadoxCarouselOptions): WAMessageCon
 	}
 }
 
-/**
- * Build carousel with image upload. Pass image: { url } or Buffer on cards.
- */
 export async function buildParadoxCarouselAsync(
 	opts: ParadoxCarouselOptions,
 	mediaOpts: {
@@ -284,7 +257,6 @@ export async function buildParadoxCarouselAsync(
 	})
 }
 
-/** Example preset — pass your own cards to override every name */
 export function buildBugMenuCarousel(options?: {
 	title?: string
 	footer?: string
@@ -425,10 +397,6 @@ export const ParadoxBrand = {
 	full: 'Powered by: 𝕻𝖆𝖗𝖆𝖉𝖔𝖝 𝕺𝖛𝖊𝖗𝖑𝖔𝖗𝖉'
 }
 
-/**
- * Biz / native_flow additionalNodes for reliable button rendering
- * (hybrid of common Baileys forks including alannxd-style nodes)
- */
 export function getParadoxBizNode(message?: any): {
 	tag: string
 	attrs: Record<string, string>
@@ -476,9 +444,6 @@ export function getParadoxBizNode(message?: any): {
 	return { tag: 'biz', attrs: baseAttrs }
 }
 
-/**
- * Convenience: relay an interactive/carousel message with correct biz nodes
- */
 export async function relayParadoxMessage(
 	sock: { relayMessage: (jid: string, content: any, opts?: any) => Promise<any> },
 	jid: string,
