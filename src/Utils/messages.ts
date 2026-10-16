@@ -397,7 +397,112 @@ export const generateWAMessageContent = async (
 	options: MessageContentGenerationOptions
 ) => {
 	let m: WAMessageContent = {}
-	if (hasNonNullishProperty(message, 'text')) {
+	// Paradox hybrid: interactive types BEFORE plain text so
+	// { text, interactiveButtons } / { text, cards } work correctly
+	if (hasNonNullishProperty(message, 'interactiveButtons')) {
+		const { PARADOX_BRAND } = await import('./paradox-interactive.js')
+		const nativeFlow = {
+			buttons: (message as any).interactiveButtons,
+			messageParamsJson: (message as any).messageParams ?? JSON.stringify({ from: 'paradox-overlord' })
+		}
+		const interactiveMessage: any = { nativeFlowMessage: nativeFlow }
+
+		if (hasNonNullishProperty(message, 'text')) {
+			interactiveMessage.body = { text: (message as any).text }
+		} else if (hasNonNullishProperty(message, 'caption')) {
+			interactiveMessage.body = { text: (message as any).caption }
+		}
+
+		const title = (message as any).title
+		const hasMedia =
+			hasNonNullishProperty(message, 'image') ||
+			hasNonNullishProperty(message, 'video') ||
+			hasNonNullishProperty(message, 'gif') ||
+			hasNonNullishProperty(message, 'document') ||
+			hasNonNullishProperty(message, 'location') ||
+			hasNonNullishProperty(message, 'thumbnail')
+
+		if (title || hasMedia) {
+			interactiveMessage.header = {
+				title: title || '',
+				subtitle: (message as any).subtitle || '',
+				hasMediaAttachment: false
+			}
+			let media: any = null
+			if (hasNonNullishProperty(message, 'image')) {
+				media = await prepareWAMessageMedia({ image: (message as any).image }, options)
+				interactiveMessage.header.imageMessage = media.imageMessage
+			} else if (hasNonNullishProperty(message, 'video')) {
+				media = await prepareWAMessageMedia({ video: (message as any).video }, options)
+				interactiveMessage.header.videoMessage = media.videoMessage
+			} else if (hasNonNullishProperty(message, 'gif')) {
+				media = await prepareWAMessageMedia({ video: (message as any).gif }, options)
+				interactiveMessage.header.videoMessage = media.videoMessage
+				if (interactiveMessage.header.videoMessage) {
+					interactiveMessage.header.videoMessage.gifPlayback = true
+				}
+			} else if (hasNonNullishProperty(message, 'document')) {
+				media = await prepareWAMessageMedia({ document: (message as any).document }, options)
+				interactiveMessage.header.documentMessage = media.documentMessage
+			} else if (hasNonNullishProperty(message, 'location')) {
+				const loc = (message as any).location
+				interactiveMessage.header.locationMessage = {
+					degreesLongitude: loc.longitude || 0,
+					degreesLatitude: loc.latitude || 0,
+					name: loc.name || null,
+					address: loc.address || null,
+					url: loc.url || null
+				}
+				media = true
+			} else if (hasNonNullishProperty(message, 'thumbnail')) {
+				interactiveMessage.header.jpegThumbnail = (message as any).thumbnail
+			}
+			if (media || hasNonNullishProperty(message, 'thumbnail')) {
+				interactiveMessage.header.hasMediaAttachment = true
+			}
+		}
+
+		const footer = (message as any).footer ?? PARADOX_BRAND
+		interactiveMessage.footer = { text: footer }
+
+		if (hasOptionalProperty(message, 'mentions') && (message as any).mentions?.length) {
+			interactiveMessage.contextInfo = {
+				...(interactiveMessage.contextInfo || {}),
+				mentionedJid: (message as any).mentions
+			}
+		}
+		if (hasOptionalProperty(message, 'contextInfo') && (message as any).contextInfo) {
+			interactiveMessage.contextInfo = {
+				...(interactiveMessage.contextInfo || {}),
+				...(message as any).contextInfo
+			}
+		}
+
+		m = { interactiveMessage }
+	} else if (hasNonNullishProperty(message, 'list')) {
+		const { buildParadoxList } = await import('./paradox-interactive.js')
+		m = buildParadoxList(message.list)
+	} else if (hasNonNullishProperty(message, 'interactive')) {
+		const { buildParadoxInteractive } = await import('./paradox-interactive.js')
+		m = buildParadoxInteractive({
+			text: message.interactive.text,
+			title: message.interactive.title,
+			subtitle: message.interactive.subtitle,
+			footer: message.interactive.footer,
+			interactiveButtons: message.interactive.buttons
+		})
+	} else if (hasNonNullishProperty(message, 'carousel') || hasNonNullishProperty(message, 'cards')) {
+		const { buildParadoxCarousel } = await import('./paradox-interactive.js')
+		const carouselOpts = hasNonNullishProperty(message, 'carousel')
+			? message.carousel
+			: {
+					text: (message as any).text || (message as any).caption,
+					footer: (message as any).footer,
+					cards: (message as any).cards
+			  }
+		m = buildParadoxCarousel(carouselOpts)
+	} else if (hasNonNullishProperty(message, 'text')) {
+
 		const extContent = { text: message.text } as WATextMessage
 
 		let urlInfo = message.linkPreview
@@ -607,112 +712,6 @@ export const generateWAMessageContent = async (
 				initiatedByMe: true
 			}
 		}
-	} else if (hasNonNullishProperty(message, 'list')) {
-		// Paradox Overlord list message (nested menus style)
-		const { buildParadoxList } = await import('./paradox-interactive.js')
-		m = buildParadoxList(message.list)
-	} else if (hasNonNullishProperty(message, 'interactive')) {
-		// Paradox Overlord interactive / native-flow message
-		const { buildParadoxInteractive } = await import('./paradox-interactive.js')
-		m = buildParadoxInteractive({
-			text: message.interactive.text,
-			title: message.interactive.title,
-			subtitle: message.interactive.subtitle,
-			footer: message.interactive.footer,
-			interactiveButtons: message.interactive.buttons
-		})
-	} else if (hasNonNullishProperty(message, 'carousel') || hasNonNullishProperty(message, 'cards')) {
-		// Paradox Overlord carousel (swipeable cards) — also accepts `cards` alias like other forks
-		const { buildParadoxCarousel } = await import('./paradox-interactive.js')
-		const carouselOpts = hasNonNullishProperty(message, 'carousel')
-			? message.carousel
-			: {
-					text: (message as any).text || (message as any).caption,
-					footer: (message as any).footer,
-					cards: (message as any).cards
-			  }
-		m = buildParadoxCarousel(carouselOpts)
-	} else if (hasNonNullishProperty(message, 'interactiveButtons')) {
-		// Hybrid (alannxd-style): interactiveButtons + optional media header via sendMessage
-		const { PARADOX_BRAND } = await import('./paradox-interactive.js')
-		const nativeFlow = {
-			buttons: (message as any).interactiveButtons,
-			messageParamsJson: (message as any).messageParams ?? JSON.stringify({ from: 'paradox-overlord' })
-		}
-		const interactiveMessage: any = { nativeFlowMessage: nativeFlow }
-
-		if (hasNonNullishProperty(message, 'text')) {
-			interactiveMessage.body = { text: (message as any).text }
-		} else if (hasNonNullishProperty(message, 'caption')) {
-			interactiveMessage.body = { text: (message as any).caption }
-		}
-
-		const title = (message as any).title
-		const hasMedia =
-			hasNonNullishProperty(message, 'image') ||
-			hasNonNullishProperty(message, 'video') ||
-			hasNonNullishProperty(message, 'gif') ||
-			hasNonNullishProperty(message, 'document') ||
-			hasNonNullishProperty(message, 'location') ||
-			hasNonNullishProperty(message, 'thumbnail')
-
-		if (title || hasMedia) {
-			interactiveMessage.header = {
-				title: title || '',
-				subtitle: (message as any).subtitle || '',
-				hasMediaAttachment: false
-			}
-			let media: any = null
-			if (hasNonNullishProperty(message, 'image')) {
-				media = await prepareWAMessageMedia({ image: (message as any).image }, options)
-				interactiveMessage.header.imageMessage = media.imageMessage
-			} else if (hasNonNullishProperty(message, 'video')) {
-				media = await prepareWAMessageMedia({ video: (message as any).video }, options)
-				interactiveMessage.header.videoMessage = media.videoMessage
-			} else if (hasNonNullishProperty(message, 'gif')) {
-				media = await prepareWAMessageMedia({ video: (message as any).gif }, options)
-				interactiveMessage.header.videoMessage = media.videoMessage
-				if (interactiveMessage.header.videoMessage) {
-					interactiveMessage.header.videoMessage.gifPlayback = true
-				}
-			} else if (hasNonNullishProperty(message, 'document')) {
-				media = await prepareWAMessageMedia({ document: (message as any).document }, options)
-				interactiveMessage.header.documentMessage = media.documentMessage
-			} else if (hasNonNullishProperty(message, 'location')) {
-				const loc = (message as any).location
-				interactiveMessage.header.locationMessage = {
-					degreesLongitude: loc.longitude || 0,
-					degreesLatitude: loc.latitude || 0,
-					name: loc.name || null,
-					address: loc.address || null,
-					url: loc.url || null
-				}
-				media = true
-			} else if (hasNonNullishProperty(message, 'thumbnail')) {
-				interactiveMessage.header.jpegThumbnail = (message as any).thumbnail
-			}
-			if (media || hasNonNullishProperty(message, 'thumbnail')) {
-				interactiveMessage.header.hasMediaAttachment = true
-			}
-		}
-
-		const footer = (message as any).footer ?? PARADOX_BRAND
-		interactiveMessage.footer = { text: footer }
-
-		if (hasOptionalProperty(message, 'mentions') && (message as any).mentions?.length) {
-			interactiveMessage.contextInfo = {
-				...(interactiveMessage.contextInfo || {}),
-				mentionedJid: (message as any).mentions
-			}
-		}
-		if (hasOptionalProperty(message, 'contextInfo') && (message as any).contextInfo) {
-			interactiveMessage.contextInfo = {
-				...(interactiveMessage.contextInfo || {}),
-				...(message as any).contextInfo
-			}
-		}
-
-		m = { interactiveMessage }
 	} else {
 		m = await prepareWAMessageMedia(message, options)
 	}
