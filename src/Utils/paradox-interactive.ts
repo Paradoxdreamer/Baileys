@@ -1,7 +1,7 @@
 /**
  * Paradox Overlord Interactive Layer
  * Hard-baked branding + nested list-in-button + carousel (with images)
- * Powered by: 𝕻𝖆𝖗𝖆𝖝𝖔𝖝 𝕺𝖛𝖊𝖗𝖑𝖔𝖗𝖉
+ * Powered by: 𝕻𝖆𝖗𝖆𝖉𝖔𝖝 𝕺𝖛𝖊𝖗𝖑𝖔𝖗𝖉
  *
  * All card titles, body text, and button labels are fully custom —
  * pass whatever names you want from ParadoxGPT or any other bot.
@@ -12,6 +12,8 @@ import type { WAMessageContent } from '../Types'
 
 export const PARADOX_BRAND = 'Powered by: 𝕻𝖆𝖗𝖆𝖉𝖔𝖝 𝕺𝖛𝖊𝖗𝖑𝖔𝖗𝖉'
 export const PARADOX_FOOTER = '𝕻𝖆𝖗𝖆𝖉𝖔𝖝 𝕺𝖛𝖊𝖗𝖑𝖔𝖗𝖉'
+/** Green chip on list rows (highlight_label) — same slot as "Powered by : Jimx" */
+export const PARADOX_BADGE = 'Powered by: 𝕻𝖆𝖗𝖆𝖉𝖔𝖝 𝕺𝖛𝖊𝖗𝖑𝖔𝖗𝖉'
 
 export type ParadoxListRow = {
 	title: string
@@ -83,6 +85,7 @@ export function buildParadoxList(opts: ParadoxListOptions): WAMessageContent {
 			listType: proto.Message.ListMessage.ListType.SINGLE_SELECT,
 			sections: opts.sections.map(s => ({
 				title: s.title,
+				highlight_label: s.highlight_label,
 				rows: s.rows.map(r => ({
 					title: r.title,
 					rowId: r.rowId,
@@ -370,6 +373,7 @@ export function buildAvailableMenusMessage(options?: {
 	const sections = options?.sections || [
 		{
 			title: 'Main',
+			highlight_label: PARADOX_BADGE,
 			rows: [
 				{ title: 'All available menus', rowId: 'all_menus', description: 'Show everything' },
 				{ title: 'Owner menu', rowId: 'owner_menu', description: 'All owner commands' },
@@ -394,6 +398,7 @@ export function buildAvailableMenusMessage(options?: {
 export const ParadoxBrand = {
 	text: PARADOX_BRAND,
 	footer: PARADOX_FOOTER,
+	badge: PARADOX_BADGE,
 	full: 'Powered by: 𝕻𝖆𝖗𝖆𝖉𝖔𝖝 𝕺𝖛𝖊𝖗𝖑𝖔𝖗𝖉'
 }
 
