@@ -3,8 +3,7 @@
  * Hard-baked branding + nested list-in-button + carousel (with images)
  * Powered by: 𝕻𝖆𝖗𝖆𝖉𝖔𝖝 𝕺𝖛𝖊𝖗𝖑𝖔𝖗𝖉
  *
- * All card titles, body text, and button labels are fully custom —
- * pass whatever names you want from ParadoxGPT or any other bot.
+ * Public types live in Types/Message.ts to avoid duplicate export clashes.
  */
 
 import { proto } from '../../WAProto/index.js'
@@ -12,23 +11,23 @@ import type { WAMessageContent } from '../Types'
 
 export const PARADOX_BRAND = 'Powered by: 𝕻𝖆𝖗𝖆𝖉𝖔𝖝 𝕺𝖛𝖊𝖗𝖑𝖔𝖗𝖉'
 export const PARADOX_FOOTER = '𝕻𝖆𝖗𝖆𝖉𝖔𝖝 𝕺𝖛𝖊𝖗𝖑𝖔𝖗𝖉'
-/** Green chip on list rows (highlight_label) — same slot as "Powered by : Jimx" */
+/** Green chip on list rows (highlight_label) */
 export const PARADOX_BADGE = 'Powered by: 𝕻𝖆𝖗𝖆𝖉𝖔𝖝 𝕺𝖛𝖊𝖗𝖑𝖔𝖗𝖉'
 
-export type ParadoxListRow = {
+type ParadoxListRow = {
 	title: string
 	rowId: string
 	description?: string
 	header?: string
 }
 
-export type ParadoxListSection = {
+type ParadoxListSection = {
 	title: string
 	rows: ParadoxListRow[]
 	highlight_label?: string
 }
 
-export type ParadoxListOptions = {
+type ParadoxListOptions = {
 	text: string
 	title?: string
 	buttonText?: string
@@ -36,12 +35,12 @@ export type ParadoxListOptions = {
 	sections: ParadoxListSection[]
 }
 
-export type ParadoxNativeFlowButton = {
+type ParadoxNativeFlowButton = {
 	name: 'quick_reply' | 'cta_url' | 'cta_call' | 'cta_copy' | 'single_select'
 	buttonParamsJson: string
 }
 
-export type ParadoxInteractiveOptions = {
+type ParadoxInteractiveOptions = {
 	text: string
 	title?: string
 	subtitle?: string
@@ -49,7 +48,7 @@ export type ParadoxInteractiveOptions = {
 	interactiveButtons: ParadoxNativeFlowButton[]
 }
 
-export type ParadoxCardButton = {
+type ParadoxCardButton = {
 	text: string
 	id?: string
 	url?: string
@@ -58,7 +57,7 @@ export type ParadoxCardButton = {
 	useWebview?: boolean
 }
 
-export type ParadoxCarouselCard = {
+type ParadoxCarouselCard = {
 	title?: string
 	body?: string
 	caption?: string
@@ -68,7 +67,7 @@ export type ParadoxCarouselCard = {
 	nativeFlow?: ParadoxCardButton[]
 }
 
-export type ParadoxCarouselOptions = {
+type ParadoxCarouselOptions = {
 	text?: string
 	body?: string
 	footer?: string
