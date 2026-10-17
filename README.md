@@ -8,16 +8,52 @@
 
 ## Install
 
+### Local / VPS (git allowed)
+
 ```bash
 yarn add github:Paradoxdreamer/Baileys
 # or
 npm install github:Paradoxdreamer/Baileys
 ```
 
+### Pterodactyl / panels that block git (`EALLOWGIT`)
+
+Do **not** use `github:Paradoxdreamer/Baileys` — npm will refuse it.
+
+**Option A — tarball (recommended)**
+
+1. Download `baileys-7.0.0-rc14-paradox.tgz` (pack from this repo after build, or the file provided for your panel).
+2. Upload the `.tgz` into your bot root (same folder as `package.json`).
+3. In `package.json`:
+
 ```json
 {
   "dependencies": {
-    "@whiskeysockets/baileys": "github:Paradoxdreamer/Baileys"
+    "baileys": "file:./baileys-7.0.0-rc14-paradox.tgz"
+  }
+}
+```
+
+4. Run `npm install` on the panel.
+
+**Option B — HTTPS archive (no git binary)**
+
+```json
+{
+  "dependencies": {
+    "baileys": "https://codeload.github.com/Paradoxdreamer/Baileys/tar.gz/refs/heads/master"
+  }
+}
+```
+
+Only works if the host can compile TypeScript on install. Prefer **Option A**.
+
+### Alias as `@whiskeysockets/baileys`
+
+```json
+{
+  "dependencies": {
+    "@whiskeysockets/baileys": "file:./baileys-7.0.0-rc14-paradox.tgz"
   }
 }
 ```
@@ -113,9 +149,7 @@ await sock.sendMessage(jid, {
 })
 ```
 
-Card titles and button labels are fully custom — pass whatever you use in ParadoxGPT.
-
-### Nested menus (available menus style)
+### Nested menus
 
 ```ts
 import { buildAvailableMenusMessage, relayParadoxMessage } from 'baileys'
@@ -145,16 +179,15 @@ import {
   getParadoxBizNode,
   relayParadoxMessage,
   ParadoxBrand,
-  PARADOX_BRAND
+  PARADOX_BRAND,
+  PARADOX_BADGE
 } from 'baileys'
 ```
 
-Default footer on interactive menus and carousels:
-
-**Powered by: 𝕻𝖆𝖗𝖆𝖉𝖔𝖝 𝕺𝖛𝖊𝖗𝖑𝖔𝖗𝖉**
+Default footer: **Powered by: 𝕻𝖆𝖗𝖆𝖉𝖔𝖝 𝕺𝖛𝖊𝖗𝖑𝖔𝖗𝖉**
 
 ## Notes
 
-- This is an **ESM** package (`"type": "module"`). Use `import`, not `require`.
-- Depends on `whatsapp-rust-bridge` for the noise handshake — needs a matching native binary on the host.
-- Prefer `relayParadoxMessage` (or `additionalNodes` from `getParadoxBizNode`) when sending interactive / carousel content for reliable client rendering.
+- **ESM** package (`"type": "module"`). Use `import`, not `require`.
+- Depends on `whatsapp-rust-bridge` — needs a matching native binary on the host.
+- Prefer `relayParadoxMessage` for interactive / carousel sends.
