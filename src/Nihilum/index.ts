@@ -2,8 +2,7 @@
  * Paradox Nihilum foundation layer for Baileys
  * Opt-in helpers — normal bots (ParadoxGPT) keep stock behavior.
  */
-import { proto } from '../../WAProto/index.js'
-import { generateMessageIDV2, generateWAMessageFromContent } from '../Utils'
+import { generateWAMessageFromContent } from '../Utils'
 import type { BinaryNode } from '../WABinary'
 
 export type BurstTask = () => Promise<unknown>
@@ -12,6 +11,7 @@ export interface RelayRawOptions {
   messageId?: string
   additionalNodes?: any[]
   additionalAttributes?: Record<string, string>
+  userJid?: string
 }
 
 export function bizInteractiveNodes(flowName = 'mixed'): any[] {
@@ -30,13 +30,24 @@ export function bizInteractiveNodes(flowName = 'mixed'): any[] {
   ]
 }
 
+function resolveUserJid(sock: any, opts?: RelayRawOptions): string {
+  return (
+    opts?.userJid ||
+    sock?.user?.id ||
+    sock?.authState?.creds?.me?.id ||
+    sock?.user?.jid ||
+    ''
+  )
+}
+
 export async function relayRaw(
   sock: any,
   jid: string,
   content: any,
   opts: RelayRawOptions = {}
 ) {
-  const full = generateWAMessageFromContent(jid, content, {})
+  const userJid = resolveUserJid(sock, opts)
+  const full = generateWAMessageFromContent(jid, content, { userJid } as any)
   const messageId = opts.messageId || full.key.id
   await sock.relayMessage(jid, full.message!, {
     messageId,
